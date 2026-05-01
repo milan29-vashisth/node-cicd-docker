@@ -1,22 +1,41 @@
 trigger:
-- main
+  branches:
+    include:
+      - main
 
 pool:
-  vmImage: ubuntu-latest
+  name: milan-self-hosted
+
+variables:
+  imageName: node-app
+  acrLoginServer: nodeacr12345.azurecr.io
+  tag: $(Build.BuildId)
 
 steps:
 
-- task: NodeTool@0
+# Build and Push Docker Image to ACR
+- task: Docker@2
+  displayName: Build and Push to ACR
   inputs:
-    versionSpec: '18.x'
-  displayName: 'Install Node.js'
+    command: buildAndPush
+    containerRegistry: service-connection-spn
+    repository: $(imageName)
+    Dockerfile: app/Dockerfile
+    buildContext: app
+    tags: |
+      $(tag)
+      latest
 
+# Stop Existing Container if Running
 - script: |
-    cd app
-    npm install
-  displayName: 'Install dependencies'
+    docker stop node-app-container || true
+    docker rm node-app-container || true
+  displayName: Stop Existing Container
 
+# Run New Container
 - script: |
-    node app/src/index.js &
-    sleep 5
-  displayName: 'Run app'
+    docker run -d \
+      --name node-app-container \
+      -p 3000:3000 \
+      $(acrLoginServer)/$(imageName):latest
+  displayName: Run New Container
