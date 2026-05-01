@@ -1,0 +1,22 @@
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - 
+- task: NodeTaskRunnerInstaller@0
+  inputs:
+    nodeVersion: '6'
+  displayName: 'Install Node.js'
+
+- script: |
+    cd app
+    npm install
+  displayName: 'Install dependencies'
+
+- script: |
+    node app/src/index.js &
+    sleep 5
+  displayName: 'Run app'
