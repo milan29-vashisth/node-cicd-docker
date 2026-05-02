@@ -8,8 +8,8 @@ const PORT = 3000;
 app.get('/', (req, res) => {
     res.send(`
         <h1>Node.js App Running Successfully 🚀</h1>
-        <p>Welcome to Docker CI/CD Demo Project will be created so how long will</p>
-        <p><strong>Hostname:</strong> ${os.hostname()}</p>
+        <p>Welcome to Docker CI/CD Demo Project will be created so how long will be act as <so but/p>
+        <p><strong>Hostname:</strong>Milan too${os.hostname()}</p>
     `);
 });
 
