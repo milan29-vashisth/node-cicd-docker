@@ -7,35 +7,48 @@ pool:
   name: milan-self-hosted
 
 variables:
+  acrName: nodeacr12345
   imageName: node-app
-  acrLoginServer: nodeacr12345.azurecr.io
-  tag: $(Build.BuildId)
+  imageTag: $(Build.BuildId)
 
-steps:
+stages:
 
-# Build and Push Docker Image to ACR
-- task: Docker@2
-  displayName: Build and Push to ACR
-  inputs:
-    command: buildAndPush
-    containerRegistry: service-connection-spn
-    repository: $(imageName)
-    Dockerfile: app/Dockerfile
-    buildContext: app
-    tags: |
-      $(tag)
-      latest
+# =========================
+# BUILD + PUSH
+# =========================
+- stage: BuildAndPush
+  jobs:
+    - job: DockerBuild
+      steps:
 
-# Stop Existing Container if Running
-- script: |
-    docker stop node-app-container || true
-    docker rm node-app-container || true
-  displayName: Stop Existing Container
+        - task: Docker@2
+          displayName: Build and Push Docker Image
+          inputs:
+            command: buildAndPush
+            repository: $(imageName)
+            dockerfile: Dockerfile
+            containerRegistry: service-connection-spn
+            tags: |
+              latest
+              $(imageTag)
 
-# Run New Container
-- script: |
-    docker run -d \
-      --name node-app-container \
-      -p 3000:3000 \
-      $(acrLoginServer)/$(imageName):latest
-  displayName: Run New Container
+# =========================
+# DEPLOY
+# =========================
+- stage: Deploy
+  dependsOn: BuildAndPush
+  jobs:
+    - job: DeployToVM
+      steps:
+
+        - script: |
+            docker pull $(acrName).azurecr.io/$(imageName):latest
+
+            docker stop nodeapp || true
+            docker rm nodeapp || true
+
+            docker run -d \
+              --name nodeapp \
+              -p 3000:3000 \
+              $(acrName).azurecr.io/$(imageName):latest
+          displayName: Deploy Container
