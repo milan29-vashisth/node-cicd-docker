@@ -13,13 +13,23 @@ variables:
 
 stages:
 
-# =========================
-# BUILD + PUSH
-# =========================
+# =====================================
+# BUILD AND PUSH IMAGE TO ACR
+# =====================================
 - stage: BuildAndPush
+  displayName: Build and Push Docker Image
+
   jobs:
-    - job: DockerBuild
+    - job: Build
+      displayName: Docker Build and Push
+
       steps:
+
+        - script: |
+            echo "Repository Structure:"
+            pwd
+            ls -R
+          displayName: Debug Repo Structure
 
         - task: Docker@2
           displayName: Build and Push Docker Image
@@ -27,19 +37,30 @@ stages:
             command: buildAndPush
             repository: $(imageName)
             dockerfile: app/Dockerfile
+            buildContext: app
             containerRegistry: service-connection-spn
             tags: |
               latest
               $(imageTag)
 
-# =========================
-# DEPLOY
-# =========================
+# =====================================
+# DEPLOY TO SELF HOSTED VM
+# =====================================
 - stage: Deploy
+  displayName: Deploy to VM
   dependsOn: BuildAndPush
+
   jobs:
     - job: DeployToVM
+      displayName: Deploy Container
+
       steps:
+
+        - task: Docker@2
+          displayName: Login to ACR
+          inputs:
+            command: login
+            containerRegistry: service-connection-spn
 
         - script: |
             docker pull $(acrName).azurecr.io/$(imageName):latest
@@ -47,8 +68,11 @@ stages:
             docker stop nodeapp || true
             docker rm nodeapp || true
 
+            docker container prune -f
+
             docker run -d \
               --name nodeapp \
               -p 3000:3000 \
+              --restart unless-stopped \
               $(acrName).azurecr.io/$(imageName):latest
           displayName: Deploy Container
