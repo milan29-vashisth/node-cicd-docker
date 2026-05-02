@@ -76,7 +76,7 @@ stages:
             echo "Starting new container..."
             docker run -d \
               --name nodeapp \
-              -p 3000:3000 \
+              -p 127.0.0.1:3000:3000  \
               --restart unless-stopped \
               $(acrName).azurecr.io/$(imageName):latest
 
