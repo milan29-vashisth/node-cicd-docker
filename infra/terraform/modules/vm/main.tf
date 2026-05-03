@@ -1,27 +1,23 @@
-# Resource Group
 resource "azurerm_resource_group" "rg" {
   name     = var.resource_group_name
   location = var.location
 }
 
-# Azure Container Registry
 resource "azurerm_container_registry" "acr" {
   name                = var.acr_name
   resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
+  location            = var.location
   sku                 = "Basic"
   admin_enabled       = true
 }
 
-# Virtual Network
 resource "azurerm_virtual_network" "vnet" {
-  name                = "devops-vnet"
+  name                = "${var.environment}-vnet"
   address_space       = ["10.0.0.0/16"]
   location            = var.location
   resource_group_name = azurerm_resource_group.rg.name
 }
 
-# Subnet
 resource "azurerm_subnet" "subnet" {
   name                 = "default"
   resource_group_name  = azurerm_resource_group.rg.name
@@ -29,22 +25,20 @@ resource "azurerm_subnet" "subnet" {
   address_prefixes     = ["10.0.1.0/24"]
 }
 
-# Public IP
 resource "azurerm_public_ip" "vm_pip" {
-  name                = "devops-agent-pip"
+  name                = "${var.environment}-vm-pip"
   location            = var.location
   resource_group_name = azurerm_resource_group.rg.name
   allocation_method   = "Static"
+  domain_name_label   = var.dns_label
 }
 
-# Network Security Group
 resource "azurerm_network_security_group" "vm_nsg" {
-  name                = "devops-agent-nsg"
+  name                = "${var.environment}-vm-nsg"
   location            = var.location
   resource_group_name = azurerm_resource_group.rg.name
 }
 
-# Allow SSH
 resource "azurerm_network_security_rule" "ssh" {
   name                        = "AllowSSH"
   priority                    = 1001
@@ -59,9 +53,8 @@ resource "azurerm_network_security_rule" "ssh" {
   network_security_group_name = azurerm_network_security_group.vm_nsg.name
 }
 
-# Network Interface
 resource "azurerm_network_interface" "vm_nic" {
-  name                = "devops-agent-nic"
+  name                = "${var.environment}-vm-nic"
   location            = var.location
   resource_group_name = azurerm_resource_group.rg.name
 
@@ -73,18 +66,16 @@ resource "azurerm_network_interface" "vm_nic" {
   }
 }
 
-# Associate NSG with NIC
 resource "azurerm_network_interface_security_group_association" "assoc" {
   network_interface_id      = azurerm_network_interface.vm_nic.id
   network_security_group_id = azurerm_network_security_group.vm_nsg.id
 }
 
-# Linux VM
 resource "azurerm_linux_virtual_machine" "agent_vm" {
   name                = var.vm_name
   resource_group_name = azurerm_resource_group.rg.name
   location            = var.location
-  size                = "Standard_B2s"
+  size                = var.vm_size
 
   admin_username = var.vm_admin_username
   admin_password = var.vm_admin_password
