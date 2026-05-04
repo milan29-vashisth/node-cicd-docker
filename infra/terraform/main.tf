@@ -1,10 +1,17 @@
-module "vm" {
-  source = "../../modules/vm"
+module "acr" {
+  source = "./modules/acr"
 
-  environment         = "uat"
+  acr_name            = var.acr_name
+  resource_group_name = "rg-shared-acr"
+  location            = var.location
+}
+
+module "vm" {
+  source = "./modules/vm"
+
+  environment         = var.environment
   location            = var.location
   resource_group_name = var.resource_group_name
-  acr_name            = var.acr_name
   vm_name             = var.vm_name
   vm_size             = var.vm_size
   vm_admin_username   = var.vm_admin_username

@@ -3,14 +3,6 @@ resource "azurerm_resource_group" "rg" {
   location = var.location
 }
 
-resource "azurerm_container_registry" "acr" {
-  name                = var.acr_name
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = var.location
-  sku                 = "Basic"
-  admin_enabled       = true
-}
-
 resource "azurerm_virtual_network" "vnet" {
   name                = "${var.environment}-vnet"
   address_space       = ["10.0.0.0/16"]
@@ -85,6 +77,7 @@ resource "azurerm_linux_virtual_machine" "agent_vm" {
   network_interface_ids = [
     azurerm_network_interface.vm_nic.id
   ]
+  custom_data = base64encode(file("${path.root}/scripts/bootstrap.sh"))
 
   os_disk {
     caching              = "ReadWrite"
