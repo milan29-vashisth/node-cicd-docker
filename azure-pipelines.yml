@@ -33,7 +33,7 @@ stages:
             repository: $(imageName)
             dockerfile: app/Dockerfile
             buildContext: app
-            containerRegistry: service-connection-spn
+            containerRegistry: uat-service-connection
             tags: |
               latest
               $(imageTag)
@@ -50,7 +50,7 @@ stages:
           displayName: Login to ACR
           inputs:
             command: login
-            containerRegistry: service-connection-spn
+            containerRegistry: uat-service-connection
 
         - script: |
             echo "Pulling latest image..."
