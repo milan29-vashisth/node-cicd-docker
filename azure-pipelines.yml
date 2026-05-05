@@ -4,7 +4,7 @@ trigger:
       - main
 
 pool:
-  name: milan-self-hosted-dev   # FIXED
+  name: milan-self-hosted-dev
 
 variables:
   acrName: nodeacrshared12345
@@ -14,23 +14,29 @@ variables:
 stages:
 
 # =========================
-# BUILD + PUSH STAGE
+# BUILD & PUSH STAGE
 # =========================
 - stage: BuildAndPush
   displayName: Build and Push Docker Image
   jobs:
     - job: Build
-      displayName: Docker Build and Push
+      displayName: Build Image
       steps:
 
         - script: |
-            echo "Repository Structure:"
+            echo "Checking repo structure..."
             pwd
             ls -R
-          displayName: Debug Repo Structure
+          displayName: Debug Repo
 
         - task: Docker@2
-          displayName: Build and Push Image to ACR
+          displayName: Login to ACR
+          inputs:
+            command: login
+            containerRegistry: uat-service-connection
+
+        - task: Docker@2
+          displayName: Build and Push Image
           inputs:
             command: buildAndPush
             repository: $(imageName)
@@ -47,35 +53,36 @@ stages:
 - stage: Deploy
   displayName: Deploy to VM
   dependsOn: BuildAndPush
+  condition: succeeded()
+
   jobs:
     - job: DeployToVM
-      displayName: Deploy Container on VM
+      displayName: Run Container
       steps:
 
-        # IMPORTANT: login again in deploy stage (reliable on self-hosted agents)
-        - script: |
-            echo "Logging into ACR..."
-            echo $(ACR_PASSWORD) | docker login $(acrName).azurecr.io \
-              -u $(ACR_USERNAME) --password-stdin
-          displayName: Docker Login to ACR
+        - task: Docker@2
+          displayName: Login to ACR
+          inputs:
+            command: login
+            containerRegistry: uat-service-connection
 
         - script: |
             echo "Pulling latest image..."
             docker pull $(acrName).azurecr.io/$(imageName):latest
 
-            echo "Stopping existing container..."
+            echo "Stopping old container..."
             docker stop nodeapp || true
             docker rm nodeapp || true
 
             echo "Freeing port 3000..."
-            sudo fuser -k 3000/tcp || true
+            fuser -k 3000/tcp || true
 
-            echo "Running new container..."
+            echo "Starting new container..."
             docker run -d \
               --name nodeapp \
               -p 3000:3000 \
               --restart unless-stopped \
               $(acrName).azurecr.io/$(imageName):latest
 
-            echo "Deployment complete."
+            echo "Deployment successful!"
           displayName: Deploy Container
