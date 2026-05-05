@@ -3,29 +3,44 @@ trigger:
     include:
       - main
 
-pool:
-  name: default
+# =========================
+# ENVIRONMENT PARAMETER
+# =========================
+parameters:
+- name: environment
+  type: string
+  default: dev
+  values:
+    - dev
+    - uat
+    - prod
 
+# =========================
+# VARIABLES
+# =========================
 variables:
   acrName: nodeacrshared12345
   imageName: node-app
   imageTag: $(Build.BuildId)
 
+# =========================
+# BUILD STAGE
+# =========================
 stages:
 
-# =========================
-# BUILD & PUSH STAGE
-# =========================
 - stage: BuildAndPush
   displayName: Build and Push Docker Image
   jobs:
     - job: Build
       displayName: Build Image
+      pool:
+        name: Default   # your self-hosted agent pool
+
       steps:
 
         - script: |
-            echo "Checking repo structure..."
-            pwd
+            echo "Building for environment: ${{ parameters.environment }}"
+            echo "Repo structure:"
             ls -R
           displayName: Debug Repo
 
@@ -48,41 +63,88 @@ stages:
               $(imageTag)
 
 # =========================
-# DEPLOY STAGE
+# DEPLOY STAGE (DEV)
 # =========================
-- stage: Deploy
-  displayName: Deploy to VM
+- stage: Deploy_DEV
+  displayName: Deploy to DEV
   dependsOn: BuildAndPush
-  condition: succeeded()
+  condition: eq('${{ parameters.environment }}', 'dev')
 
   jobs:
-    - job: DeployToVM
-      displayName: Run Container
+    - job: DeployDev
+      pool:
+        name: Default
       steps:
 
-        - task: Docker@2
-          displayName: Login to ACR
-          inputs:
-            command: login
-            containerRegistry: uat-service-connection
-
         - script: |
-            echo "Pulling latest image..."
+            echo "Deploying to DEV environment"
+
             docker pull $(acrName).azurecr.io/$(imageName):latest
 
-            echo "Stopping old container..."
-            docker stop nodeapp || true
-            docker rm nodeapp || true
+            docker rm -f nodeapp || true
 
-            echo "Freeing port 3000..."
-            fuser -k 3000/tcp || true
-
-            echo "Starting new container..."
             docker run -d \
               --name nodeapp \
               -p 3000:3000 \
               --restart unless-stopped \
               $(acrName).azurecr.io/$(imageName):latest
 
-            echo "Deployment successful!"
-          displayName: Deploy Container
+          displayName: Deploy DEV
+
+# =========================
+# DEPLOY STAGE (UAT)
+# =========================
+- stage: Deploy_UAT
+  displayName: Deploy to UAT
+  dependsOn: BuildAndPush
+  condition: eq('${{ parameters.environment }}', 'uat')
+
+  jobs:
+    - job: DeployUAT
+      pool:
+        name: Default
+      steps:
+
+        - script: |
+            echo "Deploying to UAT environment"
+
+            docker pull $(acrName).azurecr.io/$(imageName):latest
+
+            docker rm -f nodeapp || true
+
+            docker run -d \
+              --name nodeapp \
+              -p 3000:3000 \
+              --restart unless-stopped \
+              $(acrName).azurecr.io/$(imageName):latest
+
+          displayName: Deploy UAT
+
+# =========================
+# DEPLOY STAGE (PROD)
+# =========================
+- stage: Deploy_PROD
+  displayName: Deploy to PROD
+  dependsOn: BuildAndPush
+  condition: eq('${{ parameters.environment }}', 'prod')
+
+  jobs:
+    - job: DeployPROD
+      pool:
+        name: Default
+      steps:
+
+        - script: |
+            echo "Deploying to PROD environment"
+
+            docker pull $(acrName).azurecr.io/$(imageName):latest
+
+            docker rm -f nodeapp || true
+
+            docker run -d \
+              --name nodeapp \
+              -p 3000:3000 \
+              --restart unless-stopped \
+              $(acrName).azurecr.io/$(imageName):latest
+
+          displayName: Deploy PROD
