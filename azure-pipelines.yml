@@ -4,15 +4,18 @@ trigger:
       - main
 
 pool:
-  name: milan-self-hosted
+  name: milan-self-hosted-dev   # FIXED
 
 variables:
-  acrName: nodeacr12345
+  acrName: nodeacrshared12345
   imageName: node-app
   imageTag: $(Build.BuildId)
 
 stages:
 
+# =========================
+# BUILD + PUSH STAGE
+# =========================
 - stage: BuildAndPush
   displayName: Build and Push Docker Image
   jobs:
@@ -27,7 +30,7 @@ stages:
           displayName: Debug Repo Structure
 
         - task: Docker@2
-          displayName: Build and Push Docker Image
+          displayName: Build and Push Image to ACR
           inputs:
             command: buildAndPush
             repository: $(imageName)
@@ -38,45 +41,39 @@ stages:
               latest
               $(imageTag)
 
+# =========================
+# DEPLOY STAGE
+# =========================
 - stage: Deploy
   displayName: Deploy to VM
   dependsOn: BuildAndPush
   jobs:
     - job: DeployToVM
-      displayName: Deploy Container
+      displayName: Deploy Container on VM
       steps:
 
-        - task: Docker@2
-          displayName: Login to ACR
-          inputs:
-            command: login
-            containerRegistry: uat-service-connection
+        # IMPORTANT: login again in deploy stage (reliable on self-hosted agents)
+        - script: |
+            echo "Logging into ACR..."
+            echo $(ACR_PASSWORD) | docker login $(acrName).azurecr.io \
+              -u $(ACR_USERNAME) --password-stdin
+          displayName: Docker Login to ACR
 
         - script: |
             echo "Pulling latest image..."
             docker pull $(acrName).azurecr.io/$(imageName):latest
 
-            echo "Stopping/removing named container if exists..."
+            echo "Stopping existing container..."
             docker stop nodeapp || true
             docker rm nodeapp || true
 
-            echo "Stopping any container using port 3000..."
-            CONTAINER_ID=$(docker ps -q --filter "publish=3000")
-            if [ ! -z "$CONTAINER_ID" ]; then
-              docker stop $CONTAINER_ID || true
-              docker rm $CONTAINER_ID || true
-            fi
-
-            echo "Killing any non-docker process using port 3000..."
+            echo "Freeing port 3000..."
             sudo fuser -k 3000/tcp || true
 
-            echo "Pruning unused containers..."
-            docker container prune -f
-
-            echo "Starting new container..."
+            echo "Running new container..."
             docker run -d \
               --name nodeapp \
-              -p 127.0.0.1:3000:3000  \
+              -p 3000:3000 \
               --restart unless-stopped \
               $(acrName).azurecr.io/$(imageName):latest
 
